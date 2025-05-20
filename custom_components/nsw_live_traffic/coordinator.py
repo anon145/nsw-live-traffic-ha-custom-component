@@ -13,9 +13,9 @@ from homeassistant.exceptions import ConfigEntryAuthFailed
 from .api import (NswLiveTrafficApiClient, ApiError, InvalidApiKeyError, ApiForbiddenError)
 from .const import (
     DOMAIN,
-    DEFAULT_SCAN_INTERVAL,
+    DEFAULT_SCAN_INTERVAL_MINUTES,
     CONF_HAZARD_TYPES,
-    DEFAULT_HAZARD_TYPES,
+    DEFAULT_HAZARD_TYPES_API_PATHS,
     CONF_SCAN_INTERVAL # For getting scan interval in minutes from options
 )
 
@@ -38,7 +38,7 @@ class NswLiveTrafficDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]])
         # Options flow will store scan_interval in minutes.
         scan_interval_minutes = self.config_entry.options.get(
             CONF_SCAN_INTERVAL,
-            DEFAULT_SCAN_INTERVAL.total_seconds() / 60
+            DEFAULT_SCAN_INTERVAL_MINUTES
         )
         update_interval = timedelta(minutes=scan_interval_minutes)
         if update_interval < timedelta(minutes=1):
@@ -63,7 +63,7 @@ class NswLiveTrafficDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]])
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch data from TfNSW Live Traffic API."""
         selected_hazard_types = self.config_entry.options.get(
-            CONF_HAZARD_TYPES, DEFAULT_HAZARD_TYPES
+            CONF_HAZARD_TYPES, DEFAULT_HAZARD_TYPES_API_PATHS
         )
         
         _LOGGER.debug("Fetching hazards for types: %s", selected_hazard_types)
@@ -71,7 +71,7 @@ class NswLiveTrafficDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]])
         try:
             # Subtask 1.3.2.2: Call api_client.async_get_hazards()
             # Subtask 1.3.2.1: Retrieve configured hazard types (done above)
-            data = await self.api_client.async_get_hazards(hazard_types=selected_hazard_types)
+            data = await self.api_client.async_get_hazards(selected_api_paths=selected_hazard_types)
             
             # Subtask 1.3.2.3: Perform any necessary transformation (minimal for now)
             # For now, we assume the API returns a GeoJSON FeatureCollection as a dict.
