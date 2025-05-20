@@ -36,6 +36,7 @@ class NswLiveTrafficConfigFlow(config_entries.ConfigFlow):
     """Handle a config flow for NSW Live Traffic."""
 
     VERSION = 1
+    CONNECTION_CLASS = config_entries.CONN_CLASS_CLOUD_POLL
 
     async def _validate_api_key(self, api_key: str) -> Optional[str]:
         """Validate the API key by making a test call."""
