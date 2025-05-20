@@ -31,8 +31,8 @@ from .api import NswLiveTrafficApiClient, InvalidApiKeyError, ApiError, ApiForbi
 
 _LOGGER = logging.getLogger(__name__)
 
-@config_entries.HANDLERS.register(DOMAIN)
-class NswLiveTrafficConfigFlow(config_entries.ConfigFlow):
+# @config_entries.HANDLERS.register(DOMAIN) # Removed decorator
+class NswLiveTrafficConfigFlow(config_entries.ConfigFlow, domain=DOMAIN): # Added domain=DOMAIN
     """Handle a config flow for NSW Live Traffic."""
 
     VERSION = 1
