@@ -1,0 +1,40 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "NSW Live Traffic Setup",
+        "description": "Enter your Transport for NSW (TfNSW) Open Data API Key. You can obtain one from the TfNSW Open Data Hub.",
+        "data": {
+          "api_key": "TfNSW API Key"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the TfNSW API. Please check your network connection and the API status.",
+      "invalid_auth": "Invalid TfNSW API Key. Please check your API key and try again.",
+      "unknown": "An unknown error occurred. Please check the logs for more details."
+    },
+    "abort": {
+      "already_configured": "NSW Live Traffic is already configured. You can only have one instance."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "NSW Live Traffic Options",
+        "description": "Configure options for the NSW Live Traffic integration. These settings determine which hazards are monitored and how proximity alerts are handled.",
+        "data": {
+          "hazard_types": "Hazard Types to Monitor",
+          "home_radius": "Home Proximity Radius (km)",
+          "device_trackers": "Device Trackers to Monitor",
+          "device_radius": "Device Proximity Radius (km)",
+          "scan_interval": "API Scan Interval (minutes)"
+        }
+      }
+    },
+    "error": {
+      "invalid_radius": "Radius must be a non-negative number.",
+      "invalid_scan_interval": "Scan interval must be at least 1 minute."
+    }
+  }
+} 

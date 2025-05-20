@@ -1,0 +1,10 @@
+{
+  "domain": "nsw_live_traffic",
+  "name": "NSW Live Traffic",
+  "documentation": "https://github.com/YOUR_USERNAME/nsw-live-traffic-ha",
+  "iot_class": "cloud_polling",
+  "version": "0.1.0",
+  "codeowners": ["@YOUR_USERNAME"],
+  "requirements": [],
+  "loggers": ["custom_components.nsw_live_traffic"]
+}
