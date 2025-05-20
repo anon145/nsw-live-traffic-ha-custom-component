@@ -38,6 +38,8 @@ from .const import (
     SENSOR_NAME_NEARBY_HAZARDS_COUNT_SUFFIX,
     MANUFACTURER,
     MODEL,
+    CODEOWNER_USERNAME,
+    REPO_NAME,
 )
 from .coordinator import NswLiveTrafficDataUpdateCoordinator
 
@@ -107,21 +109,22 @@ class NswLiveTrafficNearbyHazardCountSensor(CoordinatorEntity[NswLiveTrafficData
         """Initialize the sensor."""
         super().__init__(coordinator)
         self.entity_description = description
-        self._hazard_type = hazard_type # Stores the granular type, e.g., "accident", "fire"
-        self._config_entry_id = config_entry_id
+        self._hazard_type = hazard_type # Store the specific hazard type this sensor is for
+        self.coordinator = coordinator # Ensure coordinator is stored
+        self._config_entry_id = coordinator.config_entry.entry_id # Store for unique ID
+
+        # Unique ID: domain_config_entry_id_hazard_type
+        self._attr_unique_id = f"{DOMAIN}_{self._config_entry_id}_{slugify(hazard_type)}"
         
-        # Construct a unique ID for the sensor
-        self._attr_unique_id = f"{config_entry_id}_{description.key}"
-        
-        # Device info to link this sensor to the integration's device entry
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, config_entry_id)},
-            # Using the config entry's title if available, otherwise a default name
-            "name": f"NSW Live Traffic ({self.coordinator.config_entry.title or DOMAIN})", 
-            "manufacturer": "Transport for NSW",
-            "model": "Live Traffic Data",
-            "entry_type": "service", # or device, depending on how you model it
-        }
+        # Device info
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, self._config_entry_id)},
+            name=self.coordinator.config_entry.title, # Use config entry title
+            manufacturer=MANUFACTURER,
+            model=MODEL,
+            configuration_url="https://github.com/anon145/nsw-live-traffic-ha-custom-component" # Static URL
+        )
+        self._attr_attribution = ATTRIBUTION
 
     @property
     def native_value(self) -> int | None:

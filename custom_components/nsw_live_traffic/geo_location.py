@@ -328,9 +328,10 @@ class NswLiveTrafficHazardGeoLocationEntity(CoordinatorEntity, GeolocationEvent)
 
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, self._config_entry_id)},
-            name=f"NSW Live Traffic ({self.coordinator.config_entry.title})",
+            name=self.coordinator.config_entry.title,
             manufacturer="Transport for NSW",
             model="Live Traffic Hazard",
+            configuration_url="https://github.com/anon145/nsw-live-traffic-ha-custom-component",
             entry_type="service", 
         )
         # No need to call update_state_and_attributes here, it was called by update_hazard_data
