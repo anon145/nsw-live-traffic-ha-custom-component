@@ -139,7 +139,7 @@ class NswLiveTrafficOptionsFlowHandler(config_entries.OptionsFlow):
                 errors[CONF_HOME_RADIUS] = "invalid_radius"
             if not isinstance(device_radius, (int, float)) or device_radius < 0:
                 errors[CONF_DEVICE_RADIUS] = "invalid_radius"
-            if not isinstance(scan_interval, int) or scan_interval < MIN_SCAN_INTERVAL_MINUTES:
+            if not isinstance(scan_interval, (int, float)) or scan_interval < MIN_SCAN_INTERVAL_MINUTES:
                 errors[CONF_SCAN_INTERVAL] = "invalid_scan_interval"
             
             if not errors:
