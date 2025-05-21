@@ -38,8 +38,6 @@ from .const import (
     SENSOR_NAME_NEARBY_HAZARDS_COUNT_SUFFIX,
     MANUFACTURER,
     MODEL,
-    CODEOWNER_USERNAME,
-    REPO_NAME,
 )
 from .coordinator import NswLiveTrafficDataUpdateCoordinator
 
