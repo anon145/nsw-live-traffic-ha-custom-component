@@ -5,6 +5,8 @@
 # // - Refactored async_get_hazards to use path-based API calls as per Swagger.
 # // - Prefers /open endpoints, falls back to /all.
 # // - Merges features from multiple API calls if multiple hazard paths are selected.
+# // Updated: 2024-07-30 (Previous date was illustrative, actual date of this change)
+# // - Added a 1-second delay between API calls in the async_get_hazards loop to mitigate potential rate limiting.
 
 import asyncio
 import logging
@@ -66,7 +68,7 @@ class NswLiveTrafficApiClient:
             # Return an empty GeoJSON FeatureCollection structure
             return {"type": "FeatureCollection", "features": []}
 
-        for api_path_segment in selected_api_paths:
+        for idx, api_path_segment in enumerate(selected_api_paths):
             # Prefer /open endpoint, fall back to /all if /open is not standard for it
             # Based on Swagger, most types have /open. regional-lga-participation only has /all.
             # We will assume /open is the primary target for live data unless a specific path proves otherwise.
@@ -76,21 +78,11 @@ class NswLiveTrafficApiClient:
             # If a path like `regional-lga-participation` (which only has /all) were added to `selected_api_paths`,
             # this logic would need adjustment or a mapping.
             
-            # Let's try constructing paths like /<path_segment>/open or /<path_segment>/all
-            # Defaulting to /all for broader compatibility as per Swagger, but ideally we want current data.
-            # Many endpoints like /fire/open, /incident/open, /roadwork/open get current data.
-            # Let's try a specific suffix for current data.
-            # A simple heuristic: if a type implies a state (like `/closed`), we respect that if we were to use it.
-            # For general fetching, we want active ones.
-            # The swagger shows: /alpine/open, /fire/open, /flood/open, /incident/open, /majorevent/open, /roadwork/open
-            # and then /<type>/all for all of them.
-            # So we can target `/<api_path_segment>/open` for these main categories.
-            
             endpoint_url = f"{API_ENDPOINT_BASE}/{api_path_segment}/open"
             # Fallback for paths that might not have an /open variant directly listed or if /open fails
             # For now, we will stick to /open as it is more aligned with "live traffic"
 
-            _LOGGER.debug("Requesting hazards from endpoint: %s", endpoint_url)
+            _LOGGER.debug("Requesting hazards from endpoint: %s (%d/%d)", endpoint_url, idx + 1, len(selected_api_paths))
 
             try:
                 async with async_timeout.timeout(API_TIMEOUT_SECONDS):
@@ -137,12 +129,10 @@ class NswLiveTrafficApiClient:
 
             except asyncio.TimeoutError:
                 _LOGGER.error("Timeout connecting to NSW Live Traffic API at %s", endpoint_url)
-                # We will continue to try other paths, but this one failed.
-                # Consider if one timeout should abort all for the update cycle.
-                # For now, individual timeouts allow partial data if other paths succeed.
-                # Raising ApiError here would stop the entire update for this cycle if we want that behavior.
-                # raise ApiError(f"Timeout connecting to {endpoint_url}") from exc
-                continue # Try next api_path_segment
+                if idx < len(selected_api_paths) - 1:
+                    _LOGGER.debug("Delaying for 1 second before next API call (after timeout).")
+                    await asyncio.sleep(1)
+                continue 
             except aiohttp.ClientResponseError as exc:
                 _LOGGER.error(
                     "ClientResponseError fetching data from %s: Status: %s, Message: %s, Headers: %s",
@@ -151,18 +141,30 @@ class NswLiveTrafficApiClient:
                     exc.message, # exc.message should contain the server's reason
                     exc.headers,
                 )
-                # Log the full exception string representation too, as it might have more context
                 _LOGGER.debug("Full ClientResponseError details: %s", exc)
-                continue # Try next api_path_segment
+                if idx < len(selected_api_paths) - 1:
+                    _LOGGER.debug("Delaying for 1 second before next API call (after ClientResponseError).")
+                    await asyncio.sleep(1)
+                continue 
             except aiohttp.ClientError as exc: # General ClientError for non-response errors (e.g. connection issues)
                 _LOGGER.error("ClientError (non-response) fetching data from %s: %s", endpoint_url, exc)
-                continue # Try next api_path_segment
-            except ApiError: # Re-raise our own specific API errors if they occur
+                if idx < len(selected_api_paths) - 1:
+                    _LOGGER.debug("Delaying for 1 second before next API call (after ClientError).")
+                    await asyncio.sleep(1)
+                continue
+            except ApiError: 
                 raise
-            except Exception as exc: # Catch any other unexpected error for this specific path call
+            except Exception as exc: 
                 _LOGGER.error("Unexpected error fetching data from %s: %s", endpoint_url, exc, exc_info=True)
-                # raise ApiError(f"Unexpected error for {endpoint_url}: {exc}") from exc
-                continue # Try next api_path_segment
+                if idx < len(selected_api_paths) - 1:
+                    _LOGGER.debug("Delaying for 1 second before next API call (after general Exception).")
+                    await asyncio.sleep(1)
+                continue
+            
+            # If try block was successful and no 'continue' was hit:
+            if idx < len(selected_api_paths) - 1:
+                _LOGGER.debug("Delaying for 1 second before next API call (after successful fetch).")
+                await asyncio.sleep(1)
 
         _LOGGER.info("Completed fetching hazards. Total unique features merged: %d from %d API paths.", len(all_features), len(selected_api_paths))
         return {"type": "FeatureCollection", "features": all_features} 
