@@ -143,10 +143,19 @@ class NswLiveTrafficApiClient:
                 # Raising ApiError here would stop the entire update for this cycle if we want that behavior.
                 # raise ApiError(f"Timeout connecting to {endpoint_url}") from exc
                 continue # Try next api_path_segment
-            except aiohttp.ClientError as exc:
-                _LOGGER.error("Client error fetching data from %s: %s", endpoint_url, exc)
-                # Similar to timeout, continue for now. 
-                # raise ApiError(f"Client error for {endpoint_url}: {exc}") from exc
+            except aiohttp.ClientResponseError as exc:
+                _LOGGER.error(
+                    "ClientResponseError fetching data from %s: Status: %s, Message: %s, Headers: %s",
+                    endpoint_url,
+                    exc.status,
+                    exc.message, # exc.message should contain the server's reason
+                    exc.headers,
+                )
+                # Log the full exception string representation too, as it might have more context
+                _LOGGER.debug("Full ClientResponseError details: %s", exc)
+                continue # Try next api_path_segment
+            except aiohttp.ClientError as exc: # General ClientError for non-response errors (e.g. connection issues)
+                _LOGGER.error("ClientError (non-response) fetching data from %s: %s", endpoint_url, exc)
                 continue # Try next api_path_segment
             except ApiError: # Re-raise our own specific API errors if they occur
                 raise
