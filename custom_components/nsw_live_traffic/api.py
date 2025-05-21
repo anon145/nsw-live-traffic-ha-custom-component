@@ -86,7 +86,7 @@ class NswLiveTrafficApiClient:
             # and then /<type>/all for all of them.
             # So we can target `/<api_path_segment>/open` for these main categories.
             
-            endpoint_url = f"{API_ENDPOINT_BASE}/{api_path_segment}/open?format={API_PARAM_FORMAT}"
+            endpoint_url = f"{API_ENDPOINT_BASE}/{api_path_segment}/open"
             # Fallback for paths that might not have an /open variant directly listed or if /open fails
             # For now, we will stick to /open as it is more aligned with "live traffic"
 
