@@ -83,6 +83,11 @@ class NswLiveTrafficApiClient:
             # For now, we will stick to /open as it is more aligned with "live traffic"
 
             _LOGGER.debug("Requesting hazards from endpoint: %s (%d/%d)", endpoint_url, idx + 1, len(selected_api_paths))
+            
+            # <NEW LOGGING>
+            _LOGGER.info("HA_INTEGRATION_API_CALL_PRE: URL: %s", endpoint_url)
+            _LOGGER.info("HA_INTEGRATION_API_CALL_PRE: Headers: %s", headers)
+            # </NEW LOGGING>
 
             try:
                 async with async_timeout.timeout(API_TIMEOUT_SECONDS):
