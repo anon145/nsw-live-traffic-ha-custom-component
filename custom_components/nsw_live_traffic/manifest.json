@@ -3,7 +3,7 @@
   "name": "NSW Live Traffic",
   "documentation": "https://github.com/anon145/nsw-live-traffic-ha-custom-component",
   "iot_class": "cloud_polling",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "config_flow": true,
   "codeowners": ["@anon145"],
   "requirements": [],
