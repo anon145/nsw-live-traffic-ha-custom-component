@@ -56,9 +56,10 @@ class NswLiveTrafficApiClient:
             _LOGGER.error("API key is not set.")
             raise InvalidApiKeyError("API Key not configured.")
 
+        # SIMPLIFIED HEADERS - exactly matching the working test script
         headers = {
             "Authorization": f"apikey {self._api_key}",
-            API_HEADER_ACCEPT: "application/json", # Ensure we ask for JSON
+            "Accept": "application/json",
         }
 
         all_features: List[Dict[str, Any]] = []
@@ -71,29 +72,20 @@ class NswLiveTrafficApiClient:
             return {"type": "FeatureCollection", "features": []}
 
         for idx, api_path_segment in enumerate(selected_api_paths):
-            # Prefer /open endpoint, fall back to /all if /open is not standard for it
-            # Based on Swagger, most types have /open. regional-lga-participation only has /all.
-            # We will assume /open is the primary target for live data unless a specific path proves otherwise.
-            # For now, we'll try /<path>/open, and if that structure isn't what we expect for a given path, 
-            # we might need a map or more complex logic. The swagger shows /<path>/open for most.
-            # For simplicity, let's assume `/open` for `alpine`, `fire`, `flood`, `incident`, `majorevent`, `roadwork`.
-            # If a path like `regional-lga-participation` (which only has /all) were added to `selected_api_paths`,
-            # this logic would need adjustment or a mapping.
-            
+            # SIMPLIFIED URL CONSTRUCTION - exactly matching the working test script format
             endpoint_url = f"{API_ENDPOINT_BASE}/{api_path_segment}/open"
-            # IMPORTANT: No query parameters - according to Swagger docs, the endpoints do not accept parameters
             
-            _LOGGER.debug("Requesting hazards from endpoint: %s (%d/%d)", endpoint_url, idx + 1, len(selected_api_paths))
-            
-            # Detailed pre-flight logging
-            _LOGGER.info("API CALL - URL: %s", endpoint_url)
-            _LOGGER.info("API CALL - Headers: %s", headers)
-            _LOGGER.info("API CALL - NO PARAMETERS sent to prevent 400 Bad Request errors")
+            # EMERGENCY DEBUG LOGGING - to verify exactly what's being sent
+            _LOGGER.error("EMERGENCY DEBUG - Calling endpoint: %s", endpoint_url)
+            _LOGGER.error("EMERGENCY DEBUG - Headers: %s", headers)
+            _LOGGER.error("EMERGENCY DEBUG - Using version 0.2.1 emergency fix")
 
             try:
-                async with async_timeout.timeout(API_TIMEOUT_SECONDS):
-                    # Explicit empty params to ensure no query parameters are sent
-                    response = await self._session.get(endpoint_url, headers=headers, params=None)
+                # SIMPLIFIED REQUEST - matching the test script with no params
+                response = await self._session.get(
+                    url=endpoint_url,
+                    headers=headers,
+                )
 
                 if response.status == 401:
                     _LOGGER.error("API Key is invalid or not authorized (401). URL: %s", endpoint_url)
@@ -104,18 +96,18 @@ class NswLiveTrafficApiClient:
                 
                 response.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
 
-                content_type = response.headers.get("Content-Type", "")
-                if "application/json" not in content_type and "application/geo+json" not in content_type:
-                    text_response = await response.text()
-                    _LOGGER.error(
-                        "Unexpected content type: %s. Expected JSON/GeoJSON. Response: %s. URL: %s",
-                        content_type,
-                        text_response[:200],
-                        endpoint_url
-                    )
-                    raise ApiError(f"Unexpected content type: {content_type}. URL: {endpoint_url}")
+                # Get the response as text first for debugging
+                response_text = await response.text()
+                _LOGGER.debug("Raw response: %s", response_text[:200])
+                
+                # Then parse as JSON
+                json_response = {}
+                try:
+                    json_response = await response.json()
+                except Exception as e:
+                    _LOGGER.error("Failed to parse JSON response: %s. Raw response: %s", e, response_text[:200])
+                    continue
 
-                json_response = await response.json()
                 _LOGGER.debug("Successfully fetched data from %s", endpoint_url)
 
                 if isinstance(json_response, dict) and "features" in json_response:
@@ -127,36 +119,31 @@ class NswLiveTrafficApiClient:
                                 all_features.append(feature)
                                 seen_feature_ids.add(feature_id)
                             elif not feature_id:
-                                _LOGGER.warning("Found a feature without an ID from %s, adding it without deduplication check. Feature: %s", endpoint_url, str(feature)[:100])
+                                _LOGGER.warning("Found a feature without an ID from %s, adding it without deduplication check.", endpoint_url)
                                 all_features.append(feature) # Add if no ID, can't deduplicate
                     else:
                         _LOGGER.warning("'features' key in response from %s is not a list: %s", endpoint_url, type(features_from_this_call))
                 else:
-                    _LOGGER.warning("Response from %s is not a dict or lacks 'features' key. Response: %s", endpoint_url, str(json_response)[:200])
+                    _LOGGER.warning("Response from %s is not a dict or lacks 'features' key.", endpoint_url)
 
             except asyncio.TimeoutError:
                 _LOGGER.error("Timeout connecting to NSW Live Traffic API at %s", endpoint_url)
                 if idx < len(selected_api_paths) - 1:
-                    _LOGGER.debug("Delaying for 1 second before next API call (after timeout).")
                     await asyncio.sleep(1)
                 continue 
             except aiohttp.ClientResponseError as exc:
                 _LOGGER.error(
-                    "ClientResponseError fetching data from %s: Status: %s, Message: %s, Headers: %s",
+                    "ClientResponseError fetching data from %s: Status: %s, Message: %s",
                     endpoint_url,
                     exc.status,
-                    exc.message, # exc.message should contain the server's reason
-                    exc.headers,
+                    exc.message,
                 )
-                _LOGGER.debug("Full ClientResponseError details: %s", exc)
                 if idx < len(selected_api_paths) - 1:
-                    _LOGGER.debug("Delaying for 1 second before next API call (after ClientResponseError).")
                     await asyncio.sleep(1)
                 continue 
             except aiohttp.ClientError as exc: # General ClientError for non-response errors (e.g. connection issues)
                 _LOGGER.error("ClientError (non-response) fetching data from %s: %s", endpoint_url, exc)
                 if idx < len(selected_api_paths) - 1:
-                    _LOGGER.debug("Delaying for 1 second before next API call (after ClientError).")
                     await asyncio.sleep(1)
                 continue
             except ApiError: 
@@ -164,13 +151,11 @@ class NswLiveTrafficApiClient:
             except Exception as exc: 
                 _LOGGER.error("Unexpected error fetching data from %s: %s", endpoint_url, exc, exc_info=True)
                 if idx < len(selected_api_paths) - 1:
-                    _LOGGER.debug("Delaying for 1 second before next API call (after general Exception).")
                     await asyncio.sleep(1)
                 continue
             
             # If try block was successful and no 'continue' was hit:
             if idx < len(selected_api_paths) - 1:
-                _LOGGER.debug("Delaying for 1 second before next API call (after successful fetch).")
                 await asyncio.sleep(1)
 
         _LOGGER.info("Completed fetching hazards. Total unique features merged: %d from %d API paths.", len(all_features), len(selected_api_paths))
