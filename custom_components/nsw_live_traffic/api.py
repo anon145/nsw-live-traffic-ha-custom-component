@@ -72,89 +72,114 @@ class NswLiveTrafficApiClient:
             return {"type": "FeatureCollection", "features": []}
 
         for idx, api_path_segment in enumerate(selected_api_paths):
-            # SIMPLIFIED URL CONSTRUCTION - exactly matching the working test script format
-            endpoint_url = f"{API_ENDPOINT_BASE}/{api_path_segment}/open"
+            # Try two different endpoint formats - first with /open, then with /all if that fails
+            endpoints_to_try = [
+                f"{API_ENDPOINT_BASE}/{api_path_segment}/open",
+                f"{API_ENDPOINT_BASE}/{api_path_segment}/all", 
+                f"{API_ENDPOINT_BASE}/{api_path_segment}"  # Last resort - try without a suffix
+            ]
             
-            # EMERGENCY DEBUG LOGGING - to verify exactly what's being sent
-            _LOGGER.error("EMERGENCY DEBUG - Calling endpoint: %s", endpoint_url)
-            _LOGGER.error("EMERGENCY DEBUG - Headers: %s", headers)
-            _LOGGER.error("EMERGENCY DEBUG - Using version 0.2.1 emergency fix")
+            success = False
+            
+            for endpoint_attempt, endpoint_url in enumerate(endpoints_to_try):
+                # EMERGENCY DEBUG LOGGING - to verify exactly what's being sent
+                _LOGGER.error(f"EMERGENCY DEBUG - Trying endpoint {endpoint_attempt+1}/{len(endpoints_to_try)}: {endpoint_url}")
+                _LOGGER.error("EMERGENCY DEBUG - Headers: %s", headers)
+                _LOGGER.error("EMERGENCY DEBUG - Using version 0.2.2 with endpoint fallbacks")
 
-            try:
-                # SIMPLIFIED REQUEST - matching the test script with no params
-                response = await self._session.get(
-                    url=endpoint_url,
-                    headers=headers,
-                )
-
-                if response.status == 401:
-                    _LOGGER.error("API Key is invalid or not authorized (401). URL: %s", endpoint_url)
-                    raise InvalidApiKeyError("Invalid API key.")
-                if response.status == 403:
-                    _LOGGER.error("API request forbidden (403). URL: %s. Check IP whitelisting or permissions.", endpoint_url)
-                    raise ApiForbiddenError("Request forbidden. Check API permissions or IP whitelisting.")
-                
-                response.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
-
-                # Get the response as text first for debugging
-                response_text = await response.text()
-                _LOGGER.debug("Raw response: %s", response_text[:200])
-                
-                # Then parse as JSON
-                json_response = {}
                 try:
-                    json_response = await response.json()
-                except Exception as e:
-                    _LOGGER.error("Failed to parse JSON response: %s. Raw response: %s", e, response_text[:200])
-                    continue
+                    # SIMPLIFIED REQUEST - matching the test script with no params
+                    response = await self._session.get(
+                        url=endpoint_url,
+                        headers=headers,
+                        timeout=aiohttp.ClientTimeout(total=API_TIMEOUT_SECONDS)
+                    )
 
-                _LOGGER.debug("Successfully fetched data from %s", endpoint_url)
-
-                if isinstance(json_response, dict) and "features" in json_response:
-                    features_from_this_call = json_response.get("features", [])
-                    if isinstance(features_from_this_call, list):
-                        for feature in features_from_this_call:
-                            feature_id = str(feature.get("id"))
-                            if feature_id and feature_id not in seen_feature_ids:
-                                all_features.append(feature)
-                                seen_feature_ids.add(feature_id)
-                            elif not feature_id:
-                                _LOGGER.warning("Found a feature without an ID from %s, adding it without deduplication check.", endpoint_url)
-                                all_features.append(feature) # Add if no ID, can't deduplicate
+                    if response.status == 401:
+                        _LOGGER.error("API Key is invalid or not authorized (401). URL: %s", endpoint_url)
+                        break  # No point trying other endpoints if the API key is invalid
+                    
+                    if response.status == 403:
+                        _LOGGER.error("API request forbidden (403). URL: %s. Check IP whitelisting or permissions.", endpoint_url)
+                        break  # No point trying other endpoints if we're forbidden
+                    
+                    # Only raise for status if it's not a 400 error (so we can try the next endpoint)
+                    if response.status != 400:
+                        response.raise_for_status()
+                    elif endpoint_attempt < len(endpoints_to_try) - 1:
+                        _LOGGER.warning("Received 400 error for %s, trying next endpoint format...", endpoint_url)
+                        continue  # Try next endpoint
                     else:
-                        _LOGGER.warning("'features' key in response from %s is not a list: %s", endpoint_url, type(features_from_this_call))
-                else:
-                    _LOGGER.warning("Response from %s is not a dict or lacks 'features' key.", endpoint_url)
+                        response.raise_for_status()  # Raise the error on the last attempt
+                    
+                    # Get the response as text first for debugging
+                    response_text = await response.text()
+                    _LOGGER.info(f"Raw response from {endpoint_url}: {response_text[:200]}")
+                    
+                    # Then parse as JSON
+                    json_response = {}
+                    try:
+                        json_response = await response.json()
+                    except Exception as e:
+                        _LOGGER.error("Failed to parse JSON response: %s. Raw response: %s", e, response_text[:200])
+                        if endpoint_attempt < len(endpoints_to_try) - 1:
+                            continue  # Try next endpoint
+                        break  # Exit the endpoints loop if this was the last attempt
+                    
+                    _LOGGER.info(f"Successfully fetched data from {endpoint_url}")
+                    
+                    if isinstance(json_response, dict) and "features" in json_response:
+                        features_from_this_call = json_response.get("features", [])
+                        if isinstance(features_from_this_call, list):
+                            for feature in features_from_this_call:
+                                feature_id = str(feature.get("id"))
+                                if feature_id and feature_id not in seen_feature_ids:
+                                    all_features.append(feature)
+                                    seen_feature_ids.add(feature_id)
+                                elif not feature_id:
+                                    _LOGGER.warning("Found a feature without an ID from %s, adding it without deduplication check.", endpoint_url)
+                                    all_features.append(feature) # Add if no ID, can't deduplicate
+                            success = True
+                            break  # Successfully processed this hazard type, exit the endpoints loop
+                        else:
+                            _LOGGER.warning("'features' key in response from %s is not a list: %s", endpoint_url, type(features_from_this_call))
+                            if endpoint_attempt < len(endpoints_to_try) - 1:
+                                continue  # Try next endpoint
+                    else:
+                        _LOGGER.warning("Response from %s is not a dict or lacks 'features' key.", endpoint_url)
+                        if endpoint_attempt < len(endpoints_to_try) - 1:
+                            continue  # Try next endpoint
 
-            except asyncio.TimeoutError:
-                _LOGGER.error("Timeout connecting to NSW Live Traffic API at %s", endpoint_url)
-                if idx < len(selected_api_paths) - 1:
-                    await asyncio.sleep(1)
-                continue 
-            except aiohttp.ClientResponseError as exc:
-                _LOGGER.error(
-                    "ClientResponseError fetching data from %s: Status: %s, Message: %s",
-                    endpoint_url,
-                    exc.status,
-                    exc.message,
-                )
-                if idx < len(selected_api_paths) - 1:
-                    await asyncio.sleep(1)
-                continue 
-            except aiohttp.ClientError as exc: # General ClientError for non-response errors (e.g. connection issues)
-                _LOGGER.error("ClientError (non-response) fetching data from %s: %s", endpoint_url, exc)
-                if idx < len(selected_api_paths) - 1:
-                    await asyncio.sleep(1)
-                continue
-            except ApiError: 
-                raise
-            except Exception as exc: 
-                _LOGGER.error("Unexpected error fetching data from %s: %s", endpoint_url, exc, exc_info=True)
-                if idx < len(selected_api_paths) - 1:
-                    await asyncio.sleep(1)
-                continue
+                except asyncio.TimeoutError:
+                    _LOGGER.error("Timeout connecting to NSW Live Traffic API at %s", endpoint_url)
+                    if endpoint_attempt < len(endpoints_to_try) - 1:
+                        continue  # Try next endpoint
+                    
+                except aiohttp.ClientResponseError as exc:
+                    _LOGGER.error(
+                        "ClientResponseError fetching data from %s: Status: %s, Message: %s",
+                        endpoint_url,
+                        exc.status,
+                        exc.message,
+                    )
+                    if endpoint_attempt < len(endpoints_to_try) - 1:
+                        continue  # Try next endpoint
+                    
+                except aiohttp.ClientError as exc: # General ClientError for non-response errors (e.g. connection issues)
+                    _LOGGER.error("ClientError (non-response) fetching data from %s: %s", endpoint_url, exc)
+                    if endpoint_attempt < len(endpoints_to_try) - 1:
+                        continue  # Try next endpoint
+                    
+                except Exception as exc: 
+                    _LOGGER.error("Unexpected error fetching data from %s: %s", endpoint_url, exc, exc_info=True)
+                    if endpoint_attempt < len(endpoints_to_try) - 1:
+                        continue  # Try next endpoint
             
-            # If try block was successful and no 'continue' was hit:
+            # If none of the endpoints worked for this hazard type, log that information
+            if not success:
+                _LOGGER.error("Failed to fetch data for hazard type %s after trying all endpoint formats.", api_path_segment)
+            
+            # Add delay before trying the next hazard type
             if idx < len(selected_api_paths) - 1:
                 await asyncio.sleep(1)
 
