@@ -4,7 +4,7 @@
   "documentation": "https://github.com/anon145/nsw-live-traffic-ha-custom-component",
   "issue_tracker": "https://github.com/anon145/nsw-live-traffic-ha-custom-component/issues",
   "iot_class": "cloud_polling",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "config_flow": true,
   "codeowners": ["@anon145"],
   "requirements": [],
