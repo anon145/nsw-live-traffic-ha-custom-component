@@ -2,6 +2,7 @@
 # This file contains constants used by the NSW Live Traffic Home Assistant integration.
 # Changes:
 # - Added MANUFACTURER and MODEL constants.
+# - Removed API_PARAM_FORMAT constant that was causing 400 Bad Request errors.
 
 from datetime import timedelta
 from typing import Final, List, Dict
@@ -16,7 +17,7 @@ MODEL: Final[str] = "Live Traffic Data"
 
 # API Configuration
 API_ENDPOINT_BASE: Final[str] = "https://api.transport.nsw.gov.au/v1/live/hazards"
-API_PARAM_FORMAT: Final[str] = "geojson"
+# API_PARAM_FORMAT: Final[str] = "geojson"  # REMOVED - causing 400 Bad Request errors
 API_HEADER_ACCEPT: Final[str] = "application/json"
 API_TIMEOUT_SECONDS: Final[int] = 20 # Increased timeout
 

@@ -7,6 +7,9 @@
 # // - Merges features from multiple API calls if multiple hazard paths are selected.
 # // Updated: 2024-07-30 (Previous date was illustrative, actual date of this change)
 # // - Added a 1-second delay between API calls in the async_get_hazards loop to mitigate potential rate limiting.
+# // Updated: 2024-07-31
+# // - CRITICAL FIX: Explicitly ensure no parameters are being sent to the API.
+# // - Added detailed logging to debug API calls.
 
 import asyncio
 import logging
@@ -21,7 +24,6 @@ from .const import (
     API_ENDPOINT_BASE,
     API_HEADER_ACCEPT,
     API_TIMEOUT_SECONDS,
-    API_PARAM_FORMAT # Retained in case some specific path might use it, though primary paths don't.
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -79,19 +81,19 @@ class NswLiveTrafficApiClient:
             # this logic would need adjustment or a mapping.
             
             endpoint_url = f"{API_ENDPOINT_BASE}/{api_path_segment}/open"
-            # Fallback for paths that might not have an /open variant directly listed or if /open fails
-            # For now, we will stick to /open as it is more aligned with "live traffic"
-
+            # IMPORTANT: No query parameters - according to Swagger docs, the endpoints do not accept parameters
+            
             _LOGGER.debug("Requesting hazards from endpoint: %s (%d/%d)", endpoint_url, idx + 1, len(selected_api_paths))
             
-            # <NEW LOGGING>
-            _LOGGER.info("HA_INTEGRATION_API_CALL_PRE: URL: %s", endpoint_url)
-            _LOGGER.info("HA_INTEGRATION_API_CALL_PRE: Headers: %s", headers)
-            # </NEW LOGGING>
+            # Detailed pre-flight logging
+            _LOGGER.info("API CALL - URL: %s", endpoint_url)
+            _LOGGER.info("API CALL - Headers: %s", headers)
+            _LOGGER.info("API CALL - NO PARAMETERS sent to prevent 400 Bad Request errors")
 
             try:
                 async with async_timeout.timeout(API_TIMEOUT_SECONDS):
-                    response = await self._session.get(endpoint_url, headers=headers)
+                    # Explicit empty params to ensure no query parameters are sent
+                    response = await self._session.get(endpoint_url, headers=headers, params=None)
 
                 if response.status == 401:
                     _LOGGER.error("API Key is invalid or not authorized (401). URL: %s", endpoint_url)
