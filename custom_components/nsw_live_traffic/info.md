@@ -2,7 +2,7 @@
 
 Provides real-time traffic hazard information from Transport for NSW for your local area.
 
-![NSW Live Traffic Logo](./logo.svg)
+![NSW Live Traffic Logo](./logo.png)
 
 **Features:**
 

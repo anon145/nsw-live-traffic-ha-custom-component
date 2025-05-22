@@ -1,6 +1,6 @@
 # NSW Live Traffic for Home Assistant
 
-![NSW Live Traffic Logo](./logo.svg)
+![NSW Live Traffic Logo](./logo.png)
 
 **Unofficial integration for displaying Transport for NSW (TfNSW) Live Traffic hazard data in Home Assistant.**
 
